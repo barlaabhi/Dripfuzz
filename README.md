@@ -1,4 +1,4 @@
-# R0fuzz 
+# Dripfuzz 
 
 *Dripfuzz* aims to find security flaws in the hardware network protocols like MODBUS, DNP3 etc.
 

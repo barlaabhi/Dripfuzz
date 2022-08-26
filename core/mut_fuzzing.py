@@ -9,6 +9,7 @@ import time
 import logging
 import pickle
 from scapy.all import *
+from requests.exceptions import ReadTimeout
 
 class Modbus(Packet):
 	name = "Modbus/tcp"
@@ -92,13 +93,16 @@ class PackGen(object):
 		else:
 			self.logger.debug("[+] Sent Packet: %s" % hexstr(ModbusPacket))
 			print("Sent: %s" % hexstr(ModbusPacket))
-			RespPacket = sock.recv(1024)
-			print(sys.stderr,'received: %s'% hexstr(RespPacket))
+			try:
+				RespPacket = sock.recv(1024)
+				print(sys.stderr,'received: %s'% hexstr(RespPacket))
+			except TimeoutError:
+				pass
 		return
 
 	def add(self, packet):
-		rand =	print(random.randint(0,len(packet.keys())))
-		rand_key = packet.keys()[rand]
+		rand =	random.randint(0,len(packet.keys())-1)
+		rand_key = list(packet.keys())[rand]
 		if packet[rand_key] == 255:
 			packet[rand_key] = 0
 		else:
@@ -106,8 +110,8 @@ class PackGen(object):
 		return packet
 
 	def sub(self, packet):
-		rand =	print(random.randint(0,len(packet.keys())))
-		rand_key = packet.keys()[rand]
+		rand =	random.randint(0,len(packet.keys())-1)
+		rand_key = list(packet.keys())[rand]
 		if packet[rand_key] == 0:
 			packet[rand_key] = 255
 		else:
@@ -115,21 +119,21 @@ class PackGen(object):
 		return packet
 
 	def shift(self, packet):
-		rand1 =	print(random.randint(0,len(packet.keys())))
-		rand_key = packet.keys()[rand1]
+		rand =	random.randint(0,len(packet.keys())-1)
+		rand_key = list(packet.keys())[rand]
 		packet[rand_key] = packet[rand_key] >> 1 
 		return packet	
 
 	def subs(self, packet):
-		rand =	print(random.randint(0,len(packet.keys())))
-		replace = print(random.randint(0, 255))
-		rand_key = packet.keys()[rand]
+		rand =	random.randint(0,len(packet.keys())-1)
+		replace = random.randint(0, 255)
+		rand_key = list(packet.keys())[rand]
 		if replace != packet[rand_key]:
 			packet[rand_key] = replace
 		return packet	
 
 	def mutate(self, packet):		
-		rand1 =	print(random.randint(0,4))
+		rand1 =	random.randint(0,4)
 		if rand1==1:
 			return self.add(packet)
 		elif rand1 == 2:

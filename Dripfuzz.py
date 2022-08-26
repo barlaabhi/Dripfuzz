@@ -13,7 +13,7 @@ from colorama import init
 from termcolor import cprint 
 from pyfiglet import figlet_format
 
-class r0fuzz(object):
+class Dripfuzz(object):
     
     supported_protocol = ["modbus"]
 
@@ -34,7 +34,7 @@ class r0fuzz(object):
             self.gfuzz = GFuzz(self)
 
         if not self._sanity_check():
-            logging.critical("[+] r0fuzz failed to init")
+            logging.critical("[+] Dripfuzz failed to init")
             sys.exit(-1)
 
     def _sanity_check(self) -> bool:
@@ -57,7 +57,7 @@ def main():
     global logging
 
     init(strip=not sys.stdout.isatty()) # strip colors if stdout is redirected
-    cprint(figlet_format('r0fuzz', font='starwars'),'yellow', attrs=['bold'])
+    cprint(figlet_format('Dripfuzz', font='starwars',width=110),'yellow', attrs=['bold'])
 
     parser = argparse.ArgumentParser(description="A grammar based fuzzer for SCADA protocols")
     subparser = parser.add_subparsers(dest='command')
@@ -74,7 +74,7 @@ def main():
 
     logging = get_logger("r0fuzz", args.verbosity)
 
-    r0obj = r0fuzz(args)
+    r0obj = Dripfuzz(args)
     
     if r0obj.command == "mutate":
         extracted_fields = r0obj.extractor.generate_fields()
@@ -91,7 +91,9 @@ def main():
     
     else:
         print("Invalid command")
-    
+
+
+
 if __name__ == "__main__":
     logging = None
     main()

@@ -3,6 +3,21 @@
 *Dripfuzz* aims to find security flaws in the hardware network protocols like MODBUS, DNP3 etc.
 
 
+
+
+## Installation
+
+- setup python virtual environment
+
+```shell
+pip install virtualenv
+git clone https://github.com/barlaabhi/Dripfuzz.git
+cd Dripfuzz
+virtualenv fuzz_env
+source fuzz_env/bin/activate
+pip install -r requirements.txt
+```
+
 ## Usage
 ```shell
 usage: Dripfuzz.py [-h] -t TARGET [-v] {dumb,mutate,generate} ...

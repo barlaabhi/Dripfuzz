@@ -1,5 +1,6 @@
 from core.logger import get_logger
 
+import pyradamsa
 import random
 import socket
 import sys	
@@ -29,6 +30,7 @@ class PackGen(object):
 		self.src_port = 49901
 		self.dest_port = 5020
 		self.verbosity = self.r0obj.log_level
+		self.pyradamsa_obj = pyradamsa.Radamsa()
 	
 		self.logger = get_logger("PackGen", self.verbosity)
 
@@ -46,12 +48,6 @@ class PackGen(object):
 		else:
 			self.logger.info("[+] Connected to Server: %s" % self.HOST)
 		return sock
-	
-	def hexstr(self, s):
-		t = ""
-		for i in range(0,len(s)):
-			t = t + str(hex(s[i]))[2:] + '-'  
-		return t[:-1]
 
 	def make_packet(self, packet):
 
@@ -74,7 +70,8 @@ class PackGen(object):
 		pkt = Ether()/IP()/TCP(sport=self.src_port, dport = self.dest_port)/packet/Modbus()
 		wrpcap('test.pcap', pkt, append=True)
 
-	def send_packet(self, packet):		
+	def send_packet(self, packet):
+
 		self.logger.debug("send_packet")
 
 		sock = self.create_connection(self.dest_port)
@@ -85,73 +82,104 @@ class PackGen(object):
 		try:
 			sock.send(ModbusPacket)
 		except socket.timeout:
-			self.logger.error("Sending Timed Out!")
+			self.logger.error("[-] Sending Timed Out!")
 		except socket.error:
-			self.logger.error("Sending Failed!")
+			self.logger.error("[-] Sending Failed!")
 			sock.close()
 			sock = self.create_connection(self.dest_port)
 		else:
 			self.logger.debug("[+] Sent Packet: %s" % hexstr(ModbusPacket))
-			print("Sent: %s" % hexstr(ModbusPacket))
+			
+			print("[*] Sent: %s" % hexstr(ModbusPacket))
+
 			try:
 				RespPacket = sock.recv(1024)
-				print(sys.stderr,'received: %s'% hexstr(RespPacket))
+				print('[*] Received: %s'% hexstr(RespPacket))
 			except TimeoutError:
 				pass
 		return
 
-	def add(self, packet):
-		rand =	random.randint(0,len(packet.keys())-1)
-		rand_key = list(packet.keys())[rand]
-		if packet[rand_key] == 255:
-			packet[rand_key] = 0
+
+	def get_mutated_string(self,data,length):
+
+		struct_const = [">B",">H"]
+
+		data = data & pow(2,(8*length))-1
+		data = struct.pack(struct_const[length-1],data)
+
+		mutated_string = b''
+
+		while len(mutated_string) < (length+1) and mutated_string <= bytes(length):
+
+			mutated_string = self.pyradamsa_obj.fuzz(data,max_mut=length)
+
+
+		return mutated_string
+
+
+
+
+	def mutate_modbus_radamsa(self,packet):
+		
+
+		# set length to 6
+		packet['length2'] = 6
+		packet['length1'] = 0
+
+		# protocol id  = 0
+		packet['protoID1'] = 0
+		packet['protoID2'] = 0
+
+
+		trans_id1 = self.get_mutated_string(packet['transID1'],1)
+		packet['transID1'] = int.from_bytes(trans_id1,"big")
+
+
+		trans_id2 = self.get_mutated_string(packet['transID2'],1)
+		packet['transID2'] = int.from_bytes(trans_id2,"big")
+
+
+		func_code = self.get_mutated_string(packet['functionCode'],1)
+		packet['functionCode'] = ( int.from_bytes(func_code,"big") % 6 ) + 1
+
+		func_data1 = self.get_mutated_string(packet['functionData1'],2)
+
+		packet['functionData1'] = int.from_bytes(func_data1,"big") 
+
+		func_data2 = self.get_mutated_string(packet['functionData2'],2)
+		
+		if packet['functionCode'] == 1 or packet['functionCode'] == 2:
+
+			packet['functionData2'] = (int.from_bytes(func_data2,"big") % 0x7D0) + 1
+
+		elif packet['functionCode'] == 3 or packet['functionCode'] == 4:
+
+			packet['functionData2'] = (int.from_bytes(func_data2,"big") % 0x7D) + 1
+
+		elif packet['functionCode'] == 5:
+			
+			packet['functionData2'] = random.choice([0x0000,0xFF00])
 		else:
-			packet[rand_key] +=1
-		return packet
+			
+			packet['functionData2'] = int.from_bytes(func_data2,"big")
 
-	def sub(self, packet):
-		rand =	random.randint(0,len(packet.keys())-1)
-		rand_key = list(packet.keys())[rand]
-		if packet[rand_key] == 0:
-			packet[rand_key] = 255
-		else:
-			packet[rand_key] -=1
-		return packet
 
-	def shift(self, packet):
-		rand =	random.randint(0,len(packet.keys())-1)
-		rand_key = list(packet.keys())[rand]
-		packet[rand_key] = packet[rand_key] >> 1 
-		return packet	
 
-	def subs(self, packet):
-		rand =	random.randint(0,len(packet.keys())-1)
-		replace = random.randint(0, 255)
-		rand_key = list(packet.keys())[rand]
-		if replace != packet[rand_key]:
-			packet[rand_key] = replace
-		return packet	
 
-	def mutate(self, packet):		
-		rand1 =	random.randint(0,4)
-		if rand1==1:
-			return self.add(packet)
-		elif rand1 == 2:
-			return self.sub(packet)
-		elif rand1 == 3:
-			return self.shift(packet)
-		else:
-			return self.subs(packet)
 
 	def formPacket(self, fields_dict):
+
 		self.logger.debug("formPacket")
-		for i in range(50):
-			packet = {}
-			print(fields_dict.keys())
-			for key in fields_dict.keys():
-				packet[key] = fields_dict[key][i]
-			print(packet)
-			self.send_packet(packet)
+
+		# packet = {}
+		# for key in fields_dict.keys():
+		# 	packet[key] = fields_dict[key][random.randint(0, 9)]
+
+		# tmp_packet
+		packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': 0xC8, 'functionData2': 0}
+
+		print("[*] Initial Packet: ",packet)
+		
 		while(1):
-			self.mutate(packet)
-			self.send_packet(packet)
+		 	self.mutate_modbus_radamsa(packet)
+		 	self.send_packet(packet)

@@ -55,12 +55,13 @@ class Extractor(object):
                 fields_dic["functionCode"].append(int(hex_val[14:16],16))
                 fields_dic["functionData1"].append(int(hex_val[16:20],16))
                 fields_dic["functionData2"].append(int(hex_val[20:],16))
-            '''c=c+1
-            print("read ",c)
-            if(c==10):
-                return fields_dic'''
-        self.logger.debug('[+] Extracted fields')
-        return fields_dic
+            
+                c=c+1
+                
+                if(c==10):
+                    
+                    self.logger.debug('[+] Extracted fields')
+                    return fields_dic
 
     
     def generate_fields(self):

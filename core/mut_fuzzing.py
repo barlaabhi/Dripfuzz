@@ -62,7 +62,6 @@ class PackGen(object):
 		TotalModbusPacket += struct.pack(">B", packet['functionCode'])
 		TotalModbusPacket += struct.pack(">H", packet['functionData1'])
 		TotalModbusPacket += struct.pack(">H", packet['functionData2'])
-
 		return TotalModbusPacket
 
 
@@ -130,7 +129,7 @@ class PackGen(object):
 		packet['protoID1'] = 0
 		packet['protoID2'] = 0
 
-
+		# trans ID 
 		trans_id1 = self.get_mutated_string(packet['transID1'],1)
 		packet['transID1'] = int.from_bytes(trans_id1,"big")
 
@@ -138,14 +137,11 @@ class PackGen(object):
 		trans_id2 = self.get_mutated_string(packet['transID2'],1)
 		packet['transID2'] = int.from_bytes(trans_id2,"big")
 
-
+		# Function Code
 		func_code = self.get_mutated_string(packet['functionCode'],1)
 		packet['functionCode'] = ( int.from_bytes(func_code,"big") % 6 ) + 1
 
-		func_data1 = self.get_mutated_string(packet['functionData1'],2)
-
-		packet['functionData1'] = int.from_bytes(func_data1,"big") 
-
+		# Function data 2
 		func_data2 = self.get_mutated_string(packet['functionData2'],2)
 		
 		if packet['functionCode'] == 1 or packet['functionCode'] == 2:
@@ -163,7 +159,16 @@ class PackGen(object):
 			
 			packet['functionData2'] = int.from_bytes(func_data2,"big")
 
+		# Function data 1
+		func_data1 = self.get_mutated_string(packet['functionData1'],2)
 
+		if (int.from_bytes(func_data1,"big") + packet['functionData2']) < 0xFFFF:
+
+			packet['functionData1'] = int.from_bytes(func_data1,"big")
+
+		else:
+
+			packet['functionData1'] = 0xFFFF - packet['functionData2']
 
 
 

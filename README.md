@@ -1,24 +1,29 @@
-# Dripfuzz 
+# Dripfuzz
 
 *Dripfuzz* aims to find security flaws in the hardware network protocols like MODBUS, DNP3 etc.
 
+## Setup
 
-
-
-## Installation
-
-- setup python virtual environment
+- Python virtual environment
 
 ```shell
-pip install virtualenv
 git clone https://github.com/barlaabhi/Dripfuzz.git
 cd Dripfuzz
+
+
+pip install virtualenv 
 virtualenv fuzz_env
 source fuzz_env/bin/activate
 pip install -r requirements.txt
 ```
 
+* Server side to simulate `modbus slave`
+  
+  * [ModbusPal](https://github.com/zeelos/ModbusPal) 
+  * [libmodbus](https://github.com/stephane/libmodbus) 
+
 ## Usage
+
 ```shell
 usage: Dripfuzz.py [-h] -t TARGET [-v] {dumb,mutate,generate} ...
 
@@ -38,15 +43,15 @@ optional arguments:
 ```
 
 ## Features
-- Dumb-Fuzzing/Brute Force: Basic Fuzzer using brute force approach
+
+- Dumb-Fuzzing/Brute Force
+  - Basic Fuzzer using brute force approach
 - Supports smart Fuzzing approaches:
   - Generation based
 - Current fuzzes:
   - MODBUS
-  - DNP3
-
 
 ## TODO:
-- Implement mutation based approach
+
 - Enhance the fuzzer experience
 - Incorporate other protocols

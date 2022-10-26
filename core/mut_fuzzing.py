@@ -28,7 +28,7 @@ class PackGen(object):
 		self.r0obj = r0obj
 		self.HOST = "127.0.0.1"
 		self.src_port = 49901
-		self.dest_port = 5020
+		self.dest_port = 502
 		self.verbosity = self.r0obj.log_level
 		self.pyradamsa_obj = pyradamsa.Radamsa()
 	
@@ -69,12 +69,11 @@ class PackGen(object):
 		pkt = Ether()/IP()/TCP(sport=self.src_port, dport = self.dest_port)/packet/Modbus()
 		wrpcap('test.pcap', pkt, append=True)
 
-	def send_packet(self, packet):
+	def send_packet(self, packet,sock):
 
 		self.logger.debug("send_packet")
 
-		sock = self.create_connection(self.dest_port)
-
+	
 		ModbusPacket = self.make_packet(packet) 
 		#AddToPCAP(ModbusPacket)
 		#AddToPCAP(RespPacket)
@@ -160,15 +159,26 @@ class PackGen(object):
 			packet['functionData2'] = int.from_bytes(func_data2,"big")
 
 		# Function data 1
+
+		# rand % (max - min + 1) + min -> get a value between min and max
+
 		func_data1 = self.get_mutated_string(packet['functionData1'],2)
 
-		if (int.from_bytes(func_data1,"big") + packet['functionData2']) < 0xFFFF:
+		if packet['functionCode'] == 1 or packet['functionCode'] == 5:
 
-			packet['functionData1'] = int.from_bytes(func_data1,"big")
+			packet['functionData1'] =  (int.from_bytes(func_data1,"big") % 9999) + 1
 
-		else:
+		elif packet['functionCode'] == 2:
 
-			packet['functionData1'] = 0xFFFF - packet['functionData2']
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (19999 - 10000) + 10001
+
+		elif packet['functionCode'] == 3 or packet['functionCode'] == 6:
+			
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (49999 - 40000) + 40001
+		
+		elif packet['functionCode'] == 4:
+			
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (39999 - 30000) + 30001
 
 
 
@@ -176,15 +186,17 @@ class PackGen(object):
 
 		self.logger.debug("formPacket")
 
-		# packet = {}
-		# for key in fields_dict.keys():
-		# 	packet[key] = fields_dict[key][random.randint(0, 9)]
+		packet = {}
+		for key in fields_dict.keys():
+			packet[key] = fields_dict[key][random.randint(0, 9)]
 
 		# tmp_packet
-		packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': 0xC8, 'functionData2': 0}
+		# packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': 0xC8, 'functionData2': 0}
 
 		print("[*] Initial Packet: ",packet)
+
+		sock = self.create_connection(self.dest_port)
 		
 		while(1):
 		 	self.mutate_modbus_radamsa(packet)
-		 	self.send_packet(packet)
+		 	self.send_packet(packet,sock)

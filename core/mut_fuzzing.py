@@ -28,7 +28,7 @@ class PackGen(object):
 		self.r0obj = r0obj
 		self.HOST = "127.0.0.1"
 		self.src_port = 49901
-		self.dest_port = 502
+		self.dest_port = 1502
 		self.verbosity = self.r0obj.log_level
 		self.pyradamsa_obj = pyradamsa.Radamsa()
 	
@@ -73,7 +73,7 @@ class PackGen(object):
 
 		self.logger.debug("send_packet")
 
-	
+		# remove make packet 
 		ModbusPacket = self.make_packet(packet) 
 		#AddToPCAP(ModbusPacket)
 		#AddToPCAP(RespPacket)
@@ -93,6 +93,7 @@ class PackGen(object):
 			try:
 				RespPacket = sock.recv(1024)
 				print('[*] Received: %s'% hexstr(RespPacket))
+
 			except TimeoutError:
 				pass
 		return
@@ -128,6 +129,8 @@ class PackGen(object):
 		packet['protoID1'] = 0
 		packet['protoID2'] = 0
 
+		#packet['unitID'] = 0xFF
+
 		# trans ID 
 		trans_id1 = self.get_mutated_string(packet['transID1'],1)
 		packet['transID1'] = int.from_bytes(trans_id1,"big")
@@ -140,7 +143,11 @@ class PackGen(object):
 		func_code = self.get_mutated_string(packet['functionCode'],1)
 		packet['functionCode'] = ( int.from_bytes(func_code,"big") % 6 ) + 1
 
+		func_data1 = self.get_mutated_string(packet['functionData1'],2)
+		packet['functionData1'] = int.from_bytes(func_data1,"big")
+
 		# Function data 2
+		
 		func_data2 = self.get_mutated_string(packet['functionData2'],2)
 		
 		if packet['functionCode'] == 1 or packet['functionCode'] == 2:
@@ -164,21 +171,25 @@ class PackGen(object):
 
 		func_data1 = self.get_mutated_string(packet['functionData1'],2)
 
-		if packet['functionCode'] == 1 or packet['functionCode'] == 5:
+		if packet['functionCode'] == 1:
 
-			packet['functionData1'] =  (int.from_bytes(func_data1,"big") % 9999) + 1
+			packet['functionData1'] =  int.from_bytes(func_data1,"big") % (341 - 304 + 1) + 304 
 
 		elif packet['functionCode'] == 2:
 
-			packet['functionData1'] = int.from_bytes(func_data1,"big") % (19999 - 10000) + 10001
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (473 - 452 + 1) + 452
 
-		elif packet['functionCode'] == 3 or packet['functionCode'] == 6:
+		elif packet['functionCode'] == 3:
 			
-			packet['functionData1'] = int.from_bytes(func_data1,"big") % (49999 - 40000) + 40001
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (387 - 352  + 1) + 352
 		
-		elif packet['functionCode'] == 4:
+		elif packet['functionCode'] == 5:
 			
-			packet['functionData1'] = int.from_bytes(func_data1,"big") % (39999 - 30000) + 30001
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (341 - 304 + 1) + 304 
+
+		elif packet['functionCode'] == 6:
+			
+			packet['functionData1'] = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
 
 
 
@@ -190,8 +201,8 @@ class PackGen(object):
 		for key in fields_dict.keys():
 			packet[key] = fields_dict[key][random.randint(0, 9)]
 
-		# tmp_packet
-		# packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': 0xC8, 'functionData2': 0}
+		#tmp_packet
+		#packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': 0xC8, 'functionData2': 0}
 
 		print("[*] Initial Packet: ",packet)
 

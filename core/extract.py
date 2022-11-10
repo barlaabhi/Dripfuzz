@@ -71,7 +71,7 @@ class Extractor(object):
 
         self.logger.debug('[+] Read file: ' + self.input)
         return self.extract_load(pac1)
-        #print(extracted_fields)
+        # print(extracted_fields)
 
 '''
 

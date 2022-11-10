@@ -164,7 +164,7 @@ class PackGen(object):
 		unit_id = struct.pack(">B",random.choice([0x00,0xFF]))
 
 		# fn_code
-		fn_code = random.choice([1,2,3,5,6])
+		fn_code = random.choice([1,2,3,5,6,16,23])
 		function_code = struct.pack(">B",fn_code)
 
 

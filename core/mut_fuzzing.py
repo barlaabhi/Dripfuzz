@@ -32,42 +32,30 @@ class PackGen(object):
 		self.dest_port = 1502
 		self.verbosity = self.r0obj.log_level
 		self.pyradamsa_obj = pyradamsa.Radamsa()
-	
 		self.logger = get_logger("PackGen", self.verbosity)
 
-		self.SOCK = None
-
-	def create_connection(self, port):
+	def create_socket(self):
+		
 		try:
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		except socket.error as msg:
-			sys.stderr.write("[ERROR] %s\n" % msg[1])
-		try:
-			#sock.bind((HOST,src_port))
 			sock.settimeout(0.5)
-			sock.connect((self.HOST, self.dest_port))
-
-		except socket.error as msg:
-			self.logger.warning("[-] Connection Failed!")
-		else:
-			self.logger.info("[+] Connected to Server: %s" % self.HOST)
+			ret_code = sock.connect_ex((self.HOST, self.dest_port))
 		
-		return sock
+		except:
+			pass
+		
+		return sock,ret_code
 
-	def make_packet(self, packet):
+	def create_connection(self):
 
-		TotalModbusPacket =  b''
-		TotalModbusPacket += struct.pack(">B", packet['transID1'])
-		TotalModbusPacket += struct.pack(">B", packet['transID2'])
-		TotalModbusPacket += struct.pack(">B", packet['protoID1'])
-		TotalModbusPacket += struct.pack(">B", packet['protoID2'])
-		TotalModbusPacket += struct.pack(">B", packet['length1'])
-		TotalModbusPacket += struct.pack(">B", packet['length2'])
-		TotalModbusPacket += struct.pack(">B", packet['unitID'])
-		TotalModbusPacket += struct.pack(">B", packet['functionCode'])
-		TotalModbusPacket += struct.pack(">H", packet['functionData1'])
-		TotalModbusPacket += struct.pack(">H", packet['functionData2'])
-		return TotalModbusPacket
+		ret_code = None
+
+		while(ret_code!=0):
+			sock_obj,ret_code = self.create_socket()
+
+		self.logger.info("[+] Connected to Server: %s" % self.HOST)
+
+		return sock_obj
 
 
 	def AddToPCAP(self, packet):
@@ -76,39 +64,36 @@ class PackGen(object):
 
 	def send_socket(self, packet):
 
-		self.logger.debug("send_packet")
+		self.logger.debug("[*] Send Packet")
 
-		# remove make packet 
-		#ModbusPacket = self.make_packet(packet) 
+		sock_obj = self.create_connection()
+
 		#AddToPCAP(ModbusPacket)
 		#AddToPCAP(RespPacket)
 
 		try:
-		
-			self.SOCK.sendall(packet+b'\x00')
-		
-		except socket.timeout:
-			
-			self.logger.error("[-] Sending Timed Out!")
-		
-		except socket.error:
+			sock_obj.send(packet)
+
+		except:
 
 			self.logger.error("[-] Sending Failed!")
-			self.SOCK.close()
-			self.SOCK = self.create_connection(self.dest_port)
+			sock_obj.close()
+			#sock_obj = self.create_connection()
 		
 		else:
+
 			self.logger.debug("[+] Sent Packet: %s" % hexstr(packet))
 			
 			print("[*] Sent: %s" % hexstr(packet))
 
-			# try:
+			try:
 
-			# 	RespPacket = self.SOCK.recv(1024)
-			# 	print('[*] Received: %s'% hexstr(RespPacket))
+				RespPacket = sock_obj.recv(1024)
+				print('[*] Received: %s'% hexstr(RespPacket))
 
-			# except TimeoutError:
-			# 	pass
+			except:
+				self.logger.error("[-] Failed to receive")
+				
 		return
 
 	def send_system(self,packet):
@@ -119,23 +104,20 @@ class PackGen(object):
 
 		self.logger.debug("[+] Sent Packet: %s" % hexstr(packet))
 
-		base64_str = base64.b64encode(packet+b'\x00').decode()
+		base64_str = base64.b64encode(packet+b'\x00').decode() # null byte to continue sending packets
 		
 		command = f"echo {base64_str} | base64 -d | nc 127.0.0.1 1502"
 		
 		os.system(command)
 
-
 	def get_mutated_string(self,data,length):
 
-		# Assuming this fn is fixed
 		if type(data)!=bytes:
 
 			struct_const = [">B",">H"]
 
 			data = data & pow(2,(8*length))-1
 			data = struct.pack(struct_const[length-1],data)
-
 
 		while(1):
 
@@ -144,8 +126,6 @@ class PackGen(object):
 			if mutated_string != bytes(length) and mutated_string != b'' and len(mutated_string) == length:
 				
 				return mutated_string
-
-
 
 	def mutate_modbus_radamsa(self,packet):
 
@@ -168,7 +148,7 @@ class PackGen(object):
 		function_code = struct.pack(">B",fn_code)
 
 
-		#function data 1
+		# function data 1 / Start Address
 		func_data1 = self.get_mutated_string(packet['start_addr'],2)
 
 		if fn_code > 6:
@@ -179,7 +159,6 @@ class PackGen(object):
 			values_to_write = b'\x00\xff'
 
 			start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
-
 
 			if fn_code == 16:
 				length_2 = struct.pack(">B",9)
@@ -198,54 +177,51 @@ class PackGen(object):
 
 				read_start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
 				
-				start_address = int.from_bytes(func_data1,"big") % (383 - 330 + 1) + 330 #random.choice([0x135,0x136,0x137,0x14D,0x14E,0x14F,0x15D,0x15E,0x15F]) -> crash addresses
+				start_address = int.from_bytes(func_data1,"big") % (383 - 330 + 1) + 330 
+				#start_address =  random.choice([0x135,0x160,0x161,0x162,0x163,0x164,0x165,0x166]) # -> crash addresses
 
 				tmp_packet = trans_id1 + trans_id2 + protocol_id1 + protocol_id2 + length_1 + length_2 + unit_id + function_code + struct.pack(">H",read_start_address) + read_count + struct.pack(">H",start_address) + register_count + byte_count + values_to_write 
 
-			return tmp_packet
-
-		# else
-		# set length to 6 for function codes 1-6
-		length_2 = struct.pack(">B",6)
-		length_1 = struct.pack(">B",0)
-
-		
-		if fn_code == 1 or fn_code == 5:
-
-			start_address =  int.from_bytes(func_data1,"big") % (341 - 304 + 1) + 304 
-
-		elif fn_code == 2:
-
-			start_address = int.from_bytes(func_data1,"big") % (473 - 452 + 1) + 452
-
-		elif fn_code == 3:
-			
-			start_address = int.from_bytes(func_data1,"big") % (387 - 352  + 1) + 352
-
-		elif fn_code == 6:
-			
-			start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
-
-
-		#Count - function data 2
-		func_data2 = self.get_mutated_string(packet['count'],2) 
-	
-		if fn_code == 1 or fn_code == 2 or fn_code == 3 or fn_code == 4:
-
-			count = (int.from_bytes(func_data2,"big") % 0x10) + 1
-
-		elif fn_code == 5:
-			
-			count = random.choice([0x0000,0xFF00])
-
 		else:
+			# set length to 6 for function codes 1-6
+			length_2 = struct.pack(">B",6)
+			length_1 = struct.pack(">B",0)
+
 			
-			count = int.from_bytes(func_data2,"big")
+			if fn_code == 1 or fn_code == 5:
 
-		tmp_packet = trans_id1 + trans_id2 + protocol_id1 + protocol_id2 + length_1 + length_2 + unit_id + function_code + struct.pack(">H",start_address) + struct.pack(">H",count)
+				start_address =  int.from_bytes(func_data1,"big") % (341 - 304 + 1) + 304 
+
+			elif fn_code == 2:
+
+				start_address = int.from_bytes(func_data1,"big") % (473 - 452 + 1) + 452
+
+			elif fn_code == 3:
+				
+				start_address = int.from_bytes(func_data1,"big") % (387 - 352  + 1) + 352
+
+			elif fn_code == 6:
+				
+				start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
+
+			#Count - function data 2
+			func_data2 = self.get_mutated_string(packet['count'],2) 
 		
-		return tmp_packet
+			if fn_code == 1 or fn_code == 2 or fn_code == 3 or fn_code == 4:
 
+				count = (int.from_bytes(func_data2,"big") % 0x10) + 1
+
+			elif fn_code == 5:
+				
+				count = random.choice([0x0000,0xFF00])
+
+			else:
+				
+				count = int.from_bytes(func_data2,"big")
+
+			tmp_packet = trans_id1 + trans_id2 + protocol_id1 + protocol_id2 + length_1 + length_2 + unit_id + function_code + struct.pack(">H",start_address) + struct.pack(">H",count)
+			
+		return tmp_packet
 
 	def formPacket(self, fields_dict):
 
@@ -255,13 +231,13 @@ class PackGen(object):
 		for key in fields_dict.keys():
 			packet[key] = fields_dict[key][random.randint(0, 9)]
 
+		
+
 		#tmp_packet
-		#packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': 0xC8, 'functionData2': 0}
+		#packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': b'\xC8', 'functionData2': 1}
 
 		print("[*] Initial Packet: ",packet)
-
-		#self.SOCK = self.create_connection(self.dest_port)
 		
 		while(1):
 			mutated_packet = self.mutate_modbus_radamsa(packet)
-			self.send_system(mutated_packet)
+			self.send_socket(mutated_packet)

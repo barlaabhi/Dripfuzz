@@ -12,6 +12,7 @@ import logging
 import pickle
 from scapy.all import *
 from requests.exceptions import ReadTimeout
+from core.brute_address import *
 
 class Modbus(Packet):
 	name = "Modbus/tcp"
@@ -33,6 +34,7 @@ class PackGen(object):
 		self.verbosity = self.r0obj.log_level
 		self.pyradamsa_obj = pyradamsa.Radamsa()
 		self.logger = get_logger("PackGen", self.verbosity)
+		self.valid_address = Brute().get_address_range()
 
 	def create_socket(self):
 		
@@ -110,7 +112,7 @@ class PackGen(object):
 		
 		os.system(command)
 
-	def get_mutated_string(self,data,length):
+	def mutate_bytes_radamsa(self,data,length):
 
 		if type(data)!=bytes:
 
@@ -127,13 +129,19 @@ class PackGen(object):
 				
 				return mutated_string
 
-	def mutate_modbus_radamsa(self,packet):
+	def get_valid_address(self,data,fn_code):
+		
+		return int.from_bytes(data,"big") % (self.valid_address[fn_code][1] - self.valid_address[fn_code][0] + 1) + self.valid_address[fn_code][0] 
+
+
+
+	def mutate_packet(self,packet):
 
 		tmp_packet = b''
 
 		# trans ID 
-		trans_id1 = self.get_mutated_string(random.randint(0,255),1)
-		trans_id2 = self.get_mutated_string(random.randint(0,255),1)
+		trans_id1 = self.mutate_bytes_radamsa(random.randint(0,255),1)
+		trans_id2 = self.mutate_bytes_radamsa(random.randint(0,255),1)
 		
 
 		# protocol id  = 0
@@ -149,7 +157,7 @@ class PackGen(object):
 
 
 		# function data 1 / Start Address
-		func_data1 = self.get_mutated_string(packet['start_addr'],2)
+		func_data1 = self.mutate_bytes_radamsa(packet[8:12],2)
 
 		if fn_code > 6:
 			# set length to 16 for function codes 16,23
@@ -158,7 +166,8 @@ class PackGen(object):
 			byte_count = b'\x02'
 			values_to_write = b'\x00\xff'
 
-			start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
+			#start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
+			start_address = self.get_valid_address(func_data1,fn_code)
 
 			if fn_code == 16:
 				length_2 = struct.pack(">B",9)
@@ -173,11 +182,11 @@ class PackGen(object):
 				read_count = b'\x00\x01'
 
 				
-				func_data1 = self.get_mutated_string(start_address,2)
+				func_data1 = self.mutate_bytes_radamsa(start_address,2)
+				read_start_address = self.get_valid_address(func_data1,fn_code)
 
-				read_start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
-				
-				start_address = int.from_bytes(func_data1,"big") % (383 - 330 + 1) + 330 
+				func_data1 = self.mutate_bytes_radamsa(start_address,2)
+				start_address = self.get_valid_address(func_data1,fn_code)
 				#start_address =  random.choice([0x135,0x160,0x161,0x162,0x163,0x164,0x165,0x166]) # -> crash addresses
 
 				tmp_packet = trans_id1 + trans_id2 + protocol_id1 + protocol_id2 + length_1 + length_2 + unit_id + function_code + struct.pack(">H",read_start_address) + read_count + struct.pack(">H",start_address) + register_count + byte_count + values_to_write 
@@ -188,24 +197,10 @@ class PackGen(object):
 			length_1 = struct.pack(">B",0)
 
 			
-			if fn_code == 1 or fn_code == 5:
-
-				start_address =  int.from_bytes(func_data1,"big") % (341 - 304 + 1) + 304 
-
-			elif fn_code == 2:
-
-				start_address = int.from_bytes(func_data1,"big") % (473 - 452 + 1) + 452
-
-			elif fn_code == 3:
-				
-				start_address = int.from_bytes(func_data1,"big") % (387 - 352  + 1) + 352
-
-			elif fn_code == 6:
-				
-				start_address = int.from_bytes(func_data1,"big") % (383 - 352 + 1) + 352
+			start_address =  self.get_valid_address(func_data1,fn_code)
 
 			#Count - function data 2
-			func_data2 = self.get_mutated_string(packet['count'],2) 
+			func_data2 = self.mutate_bytes_radamsa(packet[10:12],2) 
 		
 			if fn_code == 1 or fn_code == 2 or fn_code == 3 or fn_code == 4:
 
@@ -231,13 +226,17 @@ class PackGen(object):
 		for key in fields_dict.keys():
 			packet[key] = fields_dict[key][random.randint(0, 9)]
 
-		
-
 		#tmp_packet
 		#packet = {'transID1': 122, 'transID2': 24, 'protoID1': 0, 'protoID2': 0, 'length1': 0, 'length2': 6, 'unitID': 1, 'functionCode': 4, 'functionData1': b'\xC8', 'functionData2': 1}
 
-		print("[*] Initial Packet: ",packet)
-		
+		temp_packet = []
+		for i in packet.values():
+			temp_packet.append(i)
+
+		packet = bytes(bytearray(temp_packet[:-2]) + temp_packet[-2] + temp_packet[-1])
+
+		print("[*] Sample Packet: ",packet)
+
 		while(1):
-			mutated_packet = self.mutate_modbus_radamsa(packet)
-			self.send_socket(mutated_packet)
+			packet = self.mutate_packet(packet)
+			self.send_socket(packet)

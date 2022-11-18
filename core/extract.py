@@ -31,6 +31,7 @@ class Extractor(object):
             "length1":[],
             "length2":[],
             "unitID":[],
+            "functionCode":[],
             "start_addr":[],
             "count":[]}
 
@@ -40,7 +41,7 @@ class Extractor(object):
                 
                 packet_len = len(hex_val)
 
-                if packet_len < 12:
+                if packet_len < 13:
                     continue
                 
                 fields_dic["transID1"].append(hex_val[0])
@@ -50,8 +51,9 @@ class Extractor(object):
                 fields_dic["length1"].append(hex_val[4])
                 fields_dic["length2"].append(hex_val[5])
                 fields_dic["unitID"].append(hex_val[6])
-                fields_dic["start_addr"].append(hex_val[7:9])
-                fields_dic["count"].append(hex_val[9:11])
+                fields_dic["functionCode"].append(hex_val[7])
+                fields_dic["start_addr"].append(hex_val[8:10])
+                fields_dic["count"].append(hex_val[10:12])
                 
                 c=c+1
                 
@@ -62,6 +64,10 @@ class Extractor(object):
 
     
     def generate_fields(self):
+
+        print("[*] Start Server")
+        print("[*] Run ./server/check_kill.sh  2>&1 | tee ./logs/simulation_logs") # for simulating libmodbus
+
         try:
             pac1 = rdpcap(self.input)
         except Exception as e:
@@ -69,6 +75,7 @@ class Extractor(object):
             self.logger.warning('[*] Unable to read the file') 
             return False
 
+       
         self.logger.debug('[+] Read file: ' + self.input)
         return self.extract_load(pac1)
         # print(extracted_fields)

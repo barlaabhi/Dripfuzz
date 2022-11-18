@@ -22,6 +22,10 @@ pip install -r requirements.txt
   * [ModbusPal](https://github.com/zeelos/ModbusPal) 
   * [libmodbus](https://github.com/stephane/libmodbus) 
 
+- Run the below command if libmodbus is not installed, v3.1.6 
+
+`patchelf --replace-needed libmodbus.so.5 ./libmodbus.so.5 server`
+
 ## Usage
 
 ```shell
